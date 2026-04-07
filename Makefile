@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall -std=c++17
+CXXFLAGS = -Wall -std=c++20
 
 # Automatically include all .cpp files in current directory
 # Pick up all .cpp files in current directory except DOM.cpp
