@@ -1,22 +1,24 @@
 #include <iostream>
 #include "DOM.hpp"
+#include "parser.hpp"
 #include <string>
+#include <fstream>
+#include <sstream>
 
 int main() {
 
     using namespace std::string_literals;
 
-    auto root {elem<ElementData>("root"s, ElementData::AttrMap{{"headLine", "Hello"}})};
+    std::ifstream file{"page.html"};
 
-    auto firstChild{elem<ElementData>("child"s, ElementData::AttrMap{{"headLine", "Hello back"}})};
+    std::ostringstream ss{};
+    ss << file.rdbuf();
 
-    root.children.push_back(firstChild);
+    std::string input {ss.str()};
 
-    std::cout << root.node_data.tag_name << std::endl;
+    Parser pars{0, input};
+    auto nodes {pars.parse(input)};
 
-    for (int i {0}; i < root.children.size(); i++) {
-        std::cout << std::string(i + 1, '\t') << root.children[i].node_data.tag_name << std::endl; 
-    }
-
+    // std::cout << nodes << std::endl;
     return 0;
 }
