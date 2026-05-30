@@ -9,7 +9,7 @@ struct Parser {
     dom::Node parse(std::string);
     Parser(std::size_t pos, std::string input);
     
-    private:
+    protected:
     
     std::size_t pos;
     std::string input;
