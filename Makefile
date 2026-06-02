@@ -13,17 +13,27 @@ FILES := $(shell find $(SRC_DIR) -type f -name '*.cpp' | sort)
 OBJS := $(FILES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 
 TARGET = $(BIN_DIR)/Srowser
+DEBUG = $(BIN_DIR)/Srowser_debug
 
-.PHONY: all clean
+.PHONY: all debug release clean
 
-all: $(TARGET)
+# ==================== Default ====================
+all: release
+
+# ==================== Release Build ====================
+release: CXXFLAGS = -std=c++20 -O2 -Wall -Wextra
+release: $(TARGET)
+
+# ==================== Debug Build ====================
+debug: CXXFLAGS = -std=c++20 -g -O0 -Wall -Wextra
+debug: $(DEBUG)
 
 # Create directories
 $(OBJ_DIR) $(BIN_DIR):
 	mkdir -p $@
 
 # Linking
-$(TARGET): $(OBJS) | $(BIN_DIR)
+$(TARGET) $(DEBUG): $(OBJS) | $(BIN_DIR)
 	$(CXX) $^ -o $@
 
 # Compilation
