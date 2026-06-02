@@ -2,11 +2,14 @@
 #include <cstddef>
 #include <string>
 
-//TODO: make sure to see if it is possible to intergrate it with c++ streams!
+/*   TODO: make sure to see if it is possible to intergrate it with c++ streams!
+ *   or make it a stream class on it's own.
+ *   I think the second option is more fun!
+ */
 
 class InputStream {
     std::size_t _pos, _line, _col;
-    std::string _input_stream;
+    std::string const& _input_stream;
     
     void croak(std::string const& msg) const;
     public:

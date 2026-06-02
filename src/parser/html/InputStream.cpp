@@ -12,7 +12,7 @@ InputStream::InputStream(std::string const& input): _pos{0}, _line{1}, _col{0},
 };
 
 char InputStream::next(){
-    auto ch{this->_input_stream.at(++this->_pos)};
+    auto ch{this->_input_stream.at(this->_pos++)};
     if (ch == '\n') {
         this->_line++;
         this->_col = 0;
