@@ -1,6 +1,9 @@
 #include <iostream>
+#include <sstream>
 #include <string>
 #include "parser/html/tokenizer.hpp"
+#include <fstream>
+#include <filesystem>
 struct Tracker {
 	Tracker(std::string const& txt):kir{txt}{
 		puts("kos kash");
@@ -18,11 +21,16 @@ Tracker fun2() { return fun1(); }
 
 int main() {
 	using namespace std::string_literals;
-	std::string txt {"        surpriseeeeeee kos kash"s};
-	Tokenizer test{txt};
-	test.remove_spaces();
-	std::cout << test.consume_word() << std::endl;
-	test.remove_spaces();
-	std::cout << test.consume_word() << std::endl;
+	std::cout << "Current directory: "
+          << std::filesystem::current_path() << '\n';
+
+	std::fstream htmlFile {"src/test.html"};
+	std::stringstream buffer {};
+
+	buffer << htmlFile.rdbuf();
+
+	Tokenizer test{buffer.str()};
+	test.main_loop();
+	
 	return 0;
 }

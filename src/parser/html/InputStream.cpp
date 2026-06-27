@@ -1,6 +1,7 @@
 #include "InputStream.hpp"
 #include <stdexcept>
 #include <format>
+#include <iostream>
 
 void InputStream::croak(std::string const& msg) const {
     throw std::runtime_error(std::format("{} ({}:{})", msg, this->_line, this->_col));
@@ -27,5 +28,5 @@ char InputStream::peek() const {
 }
 
 bool InputStream::eof() const {
-    return this->_input_stream.size() < this->_pos;
+    return this->_input_stream.size() <= this->_pos;
 }

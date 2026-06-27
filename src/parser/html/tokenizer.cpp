@@ -1,5 +1,6 @@
 #include "tokenizer.hpp"
 #include <cctype>
+#include <functional>
 #include <iostream>
 
 std::string Tokenizer::consume_while(std::function<bool(char)> const& fun) const{
@@ -22,13 +23,13 @@ std::string Tokenizer::consume_word() {
     });
 }
 
-Tokenizer::Tokenizer(std::string const& txt): _stream{new InputStream{txt}}, _state{StateMachine::data} {
-    this->_main_executer = {
-        {StateMachine::data, this->open_state()},
-        {StateMachine::end_tag_open, this->end_tag_open_state()},
-        {StateMachine::open_tag, this->tag_open_state()},
-        {StateMachine::end_tag_open, this->end_tag_open_state()}
-    };
+Tokenizer::Tokenizer(std::string const& txt): _stream{new InputStream{txt}}, _state{StateMachine::data}
+, _main_executer{
+    {StateMachine::data, std::bind(&Tokenizer::open_state, this)},
+        {StateMachine::end_tag_open, std::bind(&Tokenizer::end_tag_open_state, this)},
+        {StateMachine::open_tag, std::bind(&Tokenizer::tag_open_state, this)},
+        {StateMachine::tag_name, std::bind(&Tokenizer::tag_name_state, this)}} {
+    
 }
 
 void Tokenizer::main_loop() {
@@ -37,6 +38,12 @@ void Tokenizer::main_loop() {
 }
 
 void Tokenizer::open_state() {
+
+    if (this->_stream->eof())
+        {
+            std::cout << "Emit EOF token" << std::endl;
+            return;
+        }
     auto ch{this->_stream->next()};
 
     switch (ch) {
