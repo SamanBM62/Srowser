@@ -17,10 +17,14 @@ namespace Tokens {
     using CharacterToken = char;
     
     struct TagToken {
-        std::string tag_name{};
+        TagToken(bool = false);
+        std::string tag_name;
+        bool is_close;
         /* TODO:: add the other attributes */
     };
 }
+
+using Token = std::variant<Tokens::CharacterToken, Tokens::TagToken>;
 class Tokenizer{
 
     std::unique_ptr<InputStream> const _stream;
@@ -37,7 +41,7 @@ class Tokenizer{
     void tag_name_state();
     void end_tag_open_state();
 
-    std::variant<Tokens::CharacterToken, Tokens::TagToken> _current_token;
+    Token _current_token;
 
     public:
     void main_loop();

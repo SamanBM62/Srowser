@@ -92,7 +92,7 @@ void Tokenizer::tag_name_state() {
     switch (ch) {
         case '>':
             this->_state = StateMachine::data;
-            std::cout << "emitting current tag token: " << std::get<Tokens::TagToken>(this->_current_token).tag_name << std::endl;
+            std::cout << "emitting current tag token: " << std::get<Tokens::TagToken>(this->_current_token).tag_name << std::get<Tokens::TagToken>(this->_current_token).is_close << std::endl;
         break;
         /*TODO: implemet rest according to the standards*/
     }
@@ -103,7 +103,7 @@ void Tokenizer::end_tag_open_state() {
 
     if (std::isalpha(static_cast<unsigned char>(ch)))
         {
-            this->_current_token = Tokens::TagToken{};
+            this->_current_token = Tokens::TagToken{true};
             this->_state = StateMachine::tag_name;
         }
 
@@ -115,4 +115,7 @@ void Tokenizer::end_tag_open_state() {
         /*TODO: implemet rest according to the standards*/
     
     }
+}
+
+Tokens::TagToken::TagToken(bool is_close): tag_name{}, is_close{is_close} {
 }
