@@ -5,7 +5,7 @@
 #include <iostream>
 
 TreeConstructor::TreeConstructor(): document{std::make_shared<Node>()},open_elements{}, insertion_mode{InsertionMode::Initial}, 
-    _reprocess{false} {
+    _reprocess{false}, _frame_set_ok{true} {
 
 }
 
@@ -140,7 +140,7 @@ std::shared_ptr<Element> TreeConstructor::create_elem_push(std::string const& ta
     auto elem = std::make_shared<Element>();
     elem->tag_name = tag_name;
     elem->parent = parent;
-    this->document->children.push_back(elem);
+    parent->children.push_back(elem);
 
     this->open_elements.push(elem);
 
@@ -204,4 +204,39 @@ void TreeConstructor::insert_character(char c) {
         text->data.push_back(c);
         peak->children.push_back(text);
     }
+}
+
+void TreeConstructor::process_after_head() {
+    if (auto* p = std::get_if<char>(&this->_current_token)) {
+        if (this->is_html_whitespace(*p)) {
+            this->insert_character( *p);
+            return;
+        }
+    }
+
+    if (auto* p = std::get_if<Tokens::TagToken>(&this->_current_token)) {
+        if (!p->is_close && p->tag_name == "html") {
+            /* Process the token using the rules for the "in body" insertion mode. */
+            return;
+        }
+
+        if (!p->is_close && p->tag_name == "body") {
+            auto peak {this->open_elements.top()};
+            this->create_elem_push("body", peak);
+            this->_frame_set_ok = false;
+            this->insertion_mode = InsertionMode::InBody;
+            return;
+        }
+
+        if ((p->is_close && !(p->tag_name == "body" || p->tag_name == "html" || p->tag_name == "br"))
+                 || (!p->is_close && p->tag_name == "head"))
+                //Parse error. Ignore the token.
+                return;
+    }
+
+    auto peak {this->open_elements.top()};
+    this->create_elem_push("body", peak);
+    this->insertion_mode = InsertionMode::InBody;
+    this->_reprocess = true;
+
 }

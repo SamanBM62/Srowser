@@ -81,8 +81,10 @@ private:
     std::shared_ptr<Element> create_elem_push(std::string const& tag_name, std::shared_ptr<Node> parent);
     void process_in_head();
     void insert_character(char c);
+    void process_after_head();
     
     Token _current_token;
     bool _reprocess;
     std::shared_ptr<Node> head_ptr;
+    bool _frame_set_ok;
 };
