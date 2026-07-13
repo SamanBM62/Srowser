@@ -52,7 +52,7 @@ void TreeConstructor::process_before_html() {
             elem->parent = this->document;
             this->document->children.push_back(elem);
 
-            this->open_elements.push(elem);
+            this->open_elements.push_back(elem);
 
             this->insertion_mode = InsertionMode::BeforeHead;
             return;
@@ -74,7 +74,7 @@ void TreeConstructor::process_before_html() {
     elem->parent = this->document;
     this->document->children.push_back(elem);
 
-    this->open_elements.push(elem);
+    this->open_elements.push_back(elem);
 
     this->insertion_mode = InsertionMode::BeforeHead;
 
@@ -142,7 +142,7 @@ std::shared_ptr<Element> TreeConstructor::create_elem_push(std::string const& ta
     elem->parent = parent;
     parent->children.push_back(elem);
 
-    this->open_elements.push(elem);
+    this->open_elements.push_back(elem);
 
     return elem;
 }
@@ -162,7 +162,7 @@ void TreeConstructor::process_in_head() {
         }
 
         if (p->is_close && p->tag_name == "head") {
-            this->open_elements.pop();
+            this->open_elements.pop_back();
             this->insertion_mode = InsertionMode::AfterHead;
         }
 
@@ -173,7 +173,7 @@ void TreeConstructor::process_in_head() {
         
     }
 
-    this->open_elements.pop();
+    this->open_elements.pop_back();
     this->insertion_mode = InsertionMode::AfterHead;
     this->_reprocess = true;
 
@@ -183,7 +183,7 @@ void TreeConstructor::process_in_head() {
 void TreeConstructor::insert_character(char c) {
     /* for now peak of open elements is the appropiate place for character insertaion. */
 
-    auto peak {this->open_elements.top()};
+    auto peak {this->open_elements.back()};
 
     std::shared_ptr<TextNode> found_text {nullptr};
 
@@ -221,7 +221,7 @@ void TreeConstructor::process_after_head() {
         }
 
         if (!p->is_close && p->tag_name == "body") {
-            auto peak {this->open_elements.top()};
+            auto peak {this->open_elements.back()};
             this->create_elem_push("body", peak);
             this->_frame_set_ok = false;
             this->insertion_mode = InsertionMode::InBody;
@@ -234,9 +234,125 @@ void TreeConstructor::process_after_head() {
                 return;
     }
 
-    auto peak {this->open_elements.top()};
+    auto peak {this->open_elements.back()};
     this->create_elem_push("body", peak);
     this->insertion_mode = InsertionMode::InBody;
     this->_reprocess = true;
 
+}
+
+void TreeConstructor::process_in_body() {
+    /* TODO: there are cases where the implementation is dependent on attributes, where I can implemenlt.
+         implement them once attribute has been added. */
+    if (auto* p = std::get_if<char>(&this->_current_token)) {
+        if (*p == '\0')
+        //parse error ignore token
+            return;
+
+        /* TODO:?? Reconstruct the active formatting elements, if any. */
+        this->insert_character(*p);
+        if (!this->is_html_whitespace(*p)) {
+            this->_frame_set_ok = false;
+        }
+        return;
+    }
+
+    if (auto* p = std::get_if<Tokens::TagToken>(&this->_current_token)) {
+        if (!p->is_close && p->tag_name == "html") {
+            /* If there is a template element on the stack of open elements, then ignore the token.
+
+            Otherwise, for each attribute on the token, check to see if the attribute is already present on the top element of the stack of open elements.
+             If it is not, add the attribute and its corresponding value to that element. */
+            return;
+        }
+
+        if ((!p->is_close && (p->tag_name == "base" || p->tag_name == "basefont" || p->tag_name == "bgsound" || p->tag_name == "link" 
+                || p->tag_name == "meta" || p->tag_name == "noframes" || p->tag_name == "script" || p->tag_name == "style" || p->tag_name == "template"
+                || p->tag_name == "title")) || (p->is_close && p->tag_name == "template"))
+        {
+            this->process_in_head();
+            return;
+        }
+
+        if (!p->is_close && p->tag_name == "body") {
+            //parse error
+            if (this->open_elements.size() == 1 || this->open_elements[this->open_elements.size() - 2]->tag_name != "body" /* or if one another condition */)
+                // ignore the token;
+                return;
+            else {
+                this->_frame_set_ok = false;
+            }
+            
+        }
+
+        if (p->is_close && (p->tag_name == "body" || p->tag_name == "html")) {
+            /* some rules on checking when to ignore a token */
+            auto does_have_body_elem{false};
+            auto is_specific_elem{false}; //TODO: implement this part as well
+
+            for (const auto& elem: this->open_elements) {
+                if (elem->tag_name == "body")
+                    does_have_body_elem = true;
+            }
+
+            if (!does_have_body_elem) {
+                //parse error, ignore token
+                return;
+            }
+
+            this->insertion_mode = InsertionMode::AfterBody;
+
+            if (p->tag_name == "html")
+                this->_reprocess = true;
+            return;
+        }
+        
+    }
+
+    // TODO: implement EOF token and its handeling here.
+    return;
+
+
+}
+
+void TreeConstructor::process_after_body() {
+    if (auto* p = std::get_if<char>(&this->_current_token)) {
+        if (this->is_html_whitespace(*p)) {
+            this->process_in_body();
+            return;
+        }
+    }
+
+    if (auto* p = std::get_if<Tokens::TagToken>(&this->_current_token)) {
+        if (!p->is_close && p->tag_name == "html") {
+            this->process_in_body();
+            return;
+        }
+
+        if (p->is_close && p->tag_name == "html") {
+            this->insertion_mode = InsertionMode::AfterAfterBody;
+            return;
+        }
+    }
+
+    // anything else parse error
+    this->insertion_mode = InsertionMode::InBody;
+    this->_reprocess = true;
+    return;
+}
+
+void TreeConstructor::process_after_after_body() {
+    if (auto* p = std::get_if<char>(&this->_current_token)) {
+        if (this->is_html_whitespace(*p)) {
+            this->process_in_body();
+            return;
+        }
+    }
+
+    if (auto* p = std::get_if<Tokens::TagToken>(&this->_current_token)) {
+        if (!p->is_close && p->tag_name == "html") {
+            this->process_in_body();
+            return;
+        }
+    }
 }

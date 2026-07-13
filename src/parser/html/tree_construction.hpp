@@ -64,7 +64,7 @@ struct TextNode : public Node {
 
 class TreeConstructor {
     std::shared_ptr<Node> document;
-    std::stack<std::shared_ptr<Element> /* shared or unique? */> open_elements;
+    std::vector<std::shared_ptr<Element> /* shared or unique? */> open_elements;
     InsertionMode insertion_mode;
     TreeConstructor();
 
@@ -82,6 +82,9 @@ private:
     void process_in_head();
     void insert_character(char c);
     void process_after_head();
+    void process_in_body();
+    void process_after_body();
+    void process_after_after_body();
     
     Token _current_token;
     bool _reprocess;
