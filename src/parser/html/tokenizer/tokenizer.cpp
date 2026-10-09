@@ -23,12 +23,13 @@ std::string Tokenizer::consume_word() {
     });
 }
 
-Tokenizer::Tokenizer(std::string const& txt): _stream{new InputStream{txt}}, _state{StateMachine::data}
+Tokenizer::Tokenizer(std::string const& txt, const std::unique_ptr<TreeConstructor>& tree): _stream{new InputStream{txt}}, _state{StateMachine::data}
 , _main_executer{
     {StateMachine::data, std::bind(&Tokenizer::open_state, this)},
         {StateMachine::end_tag_open, std::bind(&Tokenizer::end_tag_open_state, this)},
         {StateMachine::open_tag, std::bind(&Tokenizer::tag_open_state, this)},
-        {StateMachine::tag_name, std::bind(&Tokenizer::tag_name_state, this)}} {
+        {StateMachine::tag_name, std::bind(&Tokenizer::tag_name_state, this)}},
+        _tree {tree} {
     
 }
 
@@ -56,7 +57,7 @@ void Tokenizer::open_state() {
         //TODO: handle the EOF token and null case
         default:
             this->_current_token = ch;
-            std::cout << "emitting token character: " << std::get<Tokens::CharacterToken>(this->_current_token) << std::endl;
+            this->_tree->process_token(std::get<Tokens::CharacterToken>(this->_current_token));
             break;
     }
 }
@@ -108,6 +109,9 @@ void Tokenizer::end_tag_open_state() {
         }
 
     switch (ch) {
+        case '!':
+        /*TODO: this part should be implemented later, right now it is not necessary*/
+        break;
         case '>':
             this->_state = StateMachine::data;
             this->_stream->next();

@@ -1,5 +1,4 @@
 #include "tree_construction.hpp"
-#include "tokenizer.hpp"
 #include <memory>
 #include <variant>
 #include <iostream>
@@ -18,6 +17,7 @@ void TreeConstructor::process_initial() {
 }
 
 void TreeConstructor::process_token(const Token& token) {
+    this->_current_token = token;
     do {
 
         if (this->_reprocess)
@@ -26,6 +26,27 @@ void TreeConstructor::process_token(const Token& token) {
         switch (this->insertion_mode) {
             case InsertionMode::Initial:
                 this->process_initial();
+                break;
+            case InsertionMode::BeforeHTML:
+                this->process_before_html();
+                break;
+            case InsertionMode::BeforeHead:
+                this->process_before_head();
+                break;
+            case InsertionMode::InHead:
+                this->process_in_head();
+                break;
+            case InsertionMode::AfterHead:
+                this->process_after_head();
+                break;
+            case InsertionMode::InBody:
+                this->process_in_body();
+                break;
+            case InsertionMode::AfterBody:
+                this->process_after_body();
+                break;
+            case InsertionMode::AfterAfterBody:
+                this->process_after_after_body();
                 break;
             default:
                 break;  
@@ -59,8 +80,8 @@ void TreeConstructor::process_before_html() {
         }
 
         else if (p->is_close) {
-            if(p->tag_name != "head" || p->tag_name != "body" 
-                || p->tag_name != "html" || p->tag_name != "br") {
+            if(p->tag_name != "head" && p->tag_name != "body" 
+                && p->tag_name != "html" && p->tag_name != "br") {
 
                 std::cout << "parse error ignoring token" << std::endl;
                 return;
@@ -101,7 +122,7 @@ void TreeConstructor::process_before_head() {
 
     if (auto* p = std::get_if<Tokens::TagToken>(&this->_current_token)) {
         if (!p->is_close && p->tag_name == "html") {
-            /* Process the token using the rules for the "in body" insertion mode. */
+            this->process_in_body();
             return;
         }
 
@@ -118,14 +139,20 @@ void TreeConstructor::process_before_head() {
 
             return;
         }
+    if (p->is_close) {
+            if(p->tag_name != "head" && p->tag_name != "body" 
+                && p->tag_name != "html" && p->tag_name != "br") {
+
+                std::cout << "parse error ignoring token" << std::endl;
+                return;
+            }
+        }
     }
 
-    // Insert an HTML element for the token.
-    auto html  = this->create_elem_push("html", this->document);
 
     // Set the head element pointer to the newly created head element.
     
-    this->head_ptr = this->create_elem_push("head", html);
+    this->head_ptr = this->create_elem_push("head", this->open_elements.back());
 
     this->insertion_mode = InsertionMode::InHead;
     //Reprocess the current token.
@@ -164,6 +191,7 @@ void TreeConstructor::process_in_head() {
         if (p->is_close && p->tag_name == "head") {
             this->open_elements.pop_back();
             this->insertion_mode = InsertionMode::AfterHead;
+            return;
         }
 
         if ((p->is_close && !(p->tag_name == "body" || p->tag_name == "html" || p->tag_name == "br"))
@@ -182,29 +210,23 @@ void TreeConstructor::process_in_head() {
 
 void TreeConstructor::insert_character(char c) {
     /* for now peak of open elements is the appropiate place for character insertaion. */
+    /*TODO: this code needs revision as the description in the documentation mentions finding correct location*/
 
-    auto peak {this->open_elements.back()};
+    auto parent = this->open_elements.back();
 
-    std::shared_ptr<TextNode> found_text {nullptr};
-
-    for (const auto& child : peak->children)
-    {
-        if (auto text = std::dynamic_pointer_cast<TextNode>(child))
-        {
-            found_text = text;
-            break;
+    if (!parent->children.empty()) {
+        if (auto text =
+                std::dynamic_pointer_cast<TextNode>(parent->children.back())) {
+            text->data.push_back(c);
+            return;
         }
     }
 
-    if (found_text) {
-        found_text->data.push_back(c);
-
-    } else {
-        auto text{std::make_shared<TextNode>()};
-        text->data.push_back(c);
-        peak->children.push_back(text);
+    auto text = std::make_shared<TextNode>();
+    text->parent = parent;
+    text->data.push_back(c);
+    parent->children.push_back(text);
     }
-}
 
 void TreeConstructor::process_after_head() {
     if (auto* p = std::get_if<char>(&this->_current_token)) {
@@ -276,7 +298,7 @@ void TreeConstructor::process_in_body() {
 
         if (!p->is_close && p->tag_name == "body") {
             //parse error
-            if (this->open_elements.size() == 1 || this->open_elements[this->open_elements.size() - 2]->tag_name != "body" /* or if one another condition */)
+            if (this->open_elements.size() == 1 || std::dynamic_pointer_cast<Element>(this->open_elements[this->open_elements.size() - 2])->tag_name != "body" /* or if one another condition */)
                 // ignore the token;
                 return;
             else {
@@ -291,7 +313,7 @@ void TreeConstructor::process_in_body() {
             auto is_specific_elem{false}; //TODO: implement this part as well
 
             for (const auto& elem: this->open_elements) {
-                if (elem->tag_name == "body")
+                if (std::dynamic_pointer_cast<Element>(elem)->tag_name == "body")
                     does_have_body_elem = true;
             }
 

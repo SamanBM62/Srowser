@@ -5,6 +5,8 @@
 #include <functional>
 #include <unordered_map>
 #include <variant>
+#include "../tree_constructor/tree_construction.hpp"
+#include "token.hpp"
 
 enum class StateMachine {
     data,
@@ -13,18 +15,7 @@ enum class StateMachine {
     tag_name
 };
 
-namespace Tokens {
-    using CharacterToken = char;
-    
-    struct TagToken {
-        TagToken(bool = false);
-        std::string tag_name;
-        bool is_close;
-        /* TODO:: add the other attributes */
-    };
-}
 
-using Token = std::variant<Tokens::CharacterToken, Tokens::TagToken>;
 class Tokenizer{
 
     std::unique_ptr<InputStream> const _stream;
@@ -42,10 +33,10 @@ class Tokenizer{
     void end_tag_open_state();
 
     Token _current_token;
-
+    const std::unique_ptr<TreeConstructor>& _tree;
     public:
     void main_loop();
     void remove_spaces() const;
-    Tokenizer(std::string const& txt);
+    Tokenizer(std::string const& txt, const std::unique_ptr<TreeConstructor>&);
     std::string consume_word();
 };

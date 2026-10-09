@@ -1,23 +1,9 @@
 #include <iostream>
 #include <sstream>
 #include <string>
-#include "parser/html/tokenizer.hpp"
+#include "parser/html/parser.hpp"
 #include <fstream>
 #include <filesystem>
-struct Tracker {
-	Tracker(std::string const& txt):kir{txt}{
-		puts("kos kash");
-	};
-    Tracker() { puts("default"); }
-    Tracker(const Tracker&) { puts("COPY"); }
-    Tracker(Tracker&&) { puts("MOVE"); }
-    ~Tracker() { puts("dtor"); }
-	std::string const kir;
-};
-
-
-Tracker fun1() { return Tracker{"kos"}; }
-Tracker fun2() { return fun1(); }
 
 int main() {
 	using namespace std::string_literals;
@@ -29,8 +15,11 @@ int main() {
 
 	buffer << htmlFile.rdbuf();
 
-	Tokenizer test{buffer.str()};
+	std::string text{};
+	Parser test{buffer.str()};
 	test.main_loop();
+
+	std::cout << "test" << std::endl;
 	
 	return 0;
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tokenizer.hpp"
+#include "../tokenizer/token.hpp"
 #include <memory>
 #include <vector>
 #include <map>
@@ -40,6 +40,7 @@ enum class NodeType {
 
 
 struct Node {
+    virtual ~Node() = default;
     std::weak_ptr<Node> parent;
     NodeType type;
     std::vector<std::shared_ptr<Node>> children;
@@ -63,8 +64,9 @@ struct TextNode : public Node {
 // };
 
 class TreeConstructor {
+public:
     std::shared_ptr<Node> document;
-    std::vector<std::shared_ptr<Element> /* shared or unique? */> open_elements;
+    std::vector<std::shared_ptr<Node> /* shared or unique? */> open_elements;
     InsertionMode insertion_mode;
     TreeConstructor();
 
