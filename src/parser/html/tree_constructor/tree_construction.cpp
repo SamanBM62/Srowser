@@ -3,7 +3,7 @@
 #include <variant>
 #include <iostream>
 
-TreeConstructor::TreeConstructor(): document{std::make_shared<Node>()},open_elements{}, insertion_mode{InsertionMode::Initial}, 
+TreeConstructor::TreeConstructor(): document{std::make_shared<Node>(NodeType::Document)},open_elements{}, insertion_mode{InsertionMode::Initial}, 
     _reprocess{false}, _frame_set_ok{true} {
 
 }
@@ -45,8 +45,13 @@ void TreeConstructor::process_token(const Token& token) {
             case InsertionMode::AfterBody:
                 this->process_after_body();
                 break;
+            
             case InsertionMode::AfterAfterBody:
                 this->process_after_after_body();
+                break;
+
+            case InsertionMode::Text:
+                this->process_text();
                 break;
             default:
                 break;  
@@ -68,8 +73,7 @@ void TreeConstructor::process_before_html() {
     if (auto* p = std::get_if<Tokens::TagToken>(&this->_current_token)) {
         if (!p->is_close && p->tag_name == "html") {
             /* Remember to impelent the fucking attributes!!! 13.2.5.33 Attribute name state*/
-            auto elem = std::make_shared<Element>();
-            elem->tag_name = p->tag_name;
+            auto elem = std::make_shared<Element>(p->tag_name);
             elem->parent = this->document;
             this->document->children.push_back(elem);
 
@@ -90,8 +94,7 @@ void TreeConstructor::process_before_html() {
     }
 
     //anything else case
-    auto elem = std::make_shared<Element>();
-    elem->tag_name = "html";
+    auto elem = std::make_shared<Element>("html");
     elem->parent = this->document;
     this->document->children.push_back(elem);
 
@@ -129,11 +132,7 @@ void TreeConstructor::process_before_head() {
         if (!p->is_close && p->tag_name == "head") {
 
             // Insert an HTML element for the token.
-            auto html  = this->create_elem_push("html", this->document);
-
-            // Set the head element pointer to the newly created head element.
-            
-            this->head_ptr = this->create_elem_push(p->tag_name, html);
+            auto html  = this->create_elem_push(p->tag_name, this->open_elements.back());
 
             this->insertion_mode = InsertionMode::InHead;
 
@@ -164,8 +163,7 @@ void TreeConstructor::process_before_head() {
 
 std::shared_ptr<Element> TreeConstructor::create_elem_push(std::string const& tag_name, std::shared_ptr<Node> parent) {
 
-    auto elem = std::make_shared<Element>();
-    elem->tag_name = tag_name;
+    auto elem = std::make_shared<Element>(tag_name);
     elem->parent = parent;
     parent->children.push_back(elem);
 
@@ -198,6 +196,13 @@ void TreeConstructor::process_in_head() {
                  || (!p->is_close && p->tag_name == "head"))
                 //Parse error. Ignore the token.
                 return;
+
+        if ((!p->is_close) && (p->tag_name == "title")) {
+            this->create_elem_push("title", this->open_elements.back());
+            this->original_insertion_mode = this->insertion_mode;
+            this->insertion_mode = InsertionMode::Text;
+            return;
+        }
         
     }
 
@@ -222,9 +227,8 @@ void TreeConstructor::insert_character(char c) {
         }
     }
 
-    auto text = std::make_shared<TextNode>();
+    auto text = std::make_shared<TextNode>(c);
     text->parent = parent;
-    text->data.push_back(c);
     parent->children.push_back(text);
     }
 
@@ -377,4 +381,27 @@ void TreeConstructor::process_after_after_body() {
             return;
         }
     }
+}
+
+void TreeConstructor::process_text() {
+    if (auto* p = std::get_if<char>(&this->_current_token)) {
+        this->insert_character(*p);
+    }
+
+    if (auto* p = std::get_if<Tokens::TagToken>(&this->_current_token)) {
+        if (p->is_close ) {
+            this->open_elements.pop_back();
+            this->insertion_mode = this->original_insertion_mode;
+            return;
+        }
+    }
+}
+
+Element::Element(std::string const &tag_name): tag_name{tag_name}, Node{NodeType::Element}{
+}
+
+Node::Node(NodeType type): type{type}{
+}
+
+TextNode::TextNode(char data): data{data}, Node{NodeType::Text} {
 }

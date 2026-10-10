@@ -40,6 +40,7 @@ enum class NodeType {
 
 
 struct Node {
+    Node(NodeType);
     virtual ~Node() = default;
     std::weak_ptr<Node> parent;
     NodeType type;
@@ -48,11 +49,13 @@ struct Node {
 
 struct Element : public Node {
     /*TODO: write constructors after adding attributes, and update the code*/
+    Element(std::string const& tag_name);
     std::string tag_name;                    
     std::map<std::string, std::string> attributes;
 };
 
 struct TextNode : public Node {
+    TextNode(char data);
     std::string data;
 };
 
@@ -87,9 +90,12 @@ private:
     void process_in_body();
     void process_after_body();
     void process_after_after_body();
+    void process_text();
     
     Token _current_token;
     bool _reprocess;
     std::shared_ptr<Node> head_ptr;
     bool _frame_set_ok;
+
+    InsertionMode original_insertion_mode;
 };

@@ -57,7 +57,7 @@ void Tokenizer::open_state() {
         //TODO: handle the EOF token and null case
         default:
             this->_current_token = ch;
-            this->_tree->process_token(std::get<Tokens::CharacterToken>(this->_current_token));
+            this->_tree->process_token(this->_current_token);
             break;
     }
 }
@@ -73,27 +73,27 @@ void Tokenizer::tag_open_state() {
 
     switch (ch) {
         case '/':
-            this->_state = StateMachine::end_tag_open;
-            this->_stream->next();
+        this->_state = StateMachine::end_tag_open;
+        this->_stream->next();
         break;
         /*TODO: implemet rest according to the standards*/
-    
+        
     }
 }
 
 void Tokenizer::tag_name_state() {
     auto ch{this->_stream->next()};
     if (std::isalpha(static_cast<unsigned char>(ch)))
-        {
-            if (std::isupper(static_cast<unsigned char>(ch)))
-                ch = std::tolower(static_cast<unsigned char>(ch));
-            
-            std::get<Tokens::TagToken>(this->_current_token).tag_name += ch;
-        }
+    {
+        if (std::isupper(static_cast<unsigned char>(ch)))
+        ch = std::tolower(static_cast<unsigned char>(ch));
+        
+        std::get<Tokens::TagToken>(this->_current_token).tag_name += ch;
+    }
     switch (ch) {
         case '>':
             this->_state = StateMachine::data;
-            std::cout << "emitting current tag token: " << std::get<Tokens::TagToken>(this->_current_token).tag_name << std::get<Tokens::TagToken>(this->_current_token).is_close << std::endl;
+            this->_tree->process_token(this->_current_token);
         break;
         /*TODO: implemet rest according to the standards*/
     }
