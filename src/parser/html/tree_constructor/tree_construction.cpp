@@ -16,8 +16,17 @@ void TreeConstructor::process_initial() {
     this->_reprocess = true;
 }
 
-void TreeConstructor::process_token(const Token& token) {
-    this->_current_token = token;
+void TreeConstructor::process_token(Token&& token) {
+    /*TODO:this looks very ugly and unnecassary, this is because of unique ptr in token and elem for attr, later reconsider this!!!*/
+    if (std::holds_alternative<char>(token)) {
+        this->_current_token.emplace<char>(
+            std::get<char>(std::move(token))
+        );
+    } else {
+        this->_current_token.emplace<Tokens::TagToken>(
+            std::get<Tokens::TagToken>(std::move(token))
+        );
+    }
     do {
 
         if (this->_reprocess)
@@ -73,11 +82,8 @@ void TreeConstructor::process_before_html() {
     if (auto* p = std::get_if<Tokens::TagToken>(&this->_current_token)) {
         if (!p->is_close && p->tag_name == "html") {
             /* Remember to impelent the fucking attributes!!! 13.2.5.33 Attribute name state*/
-            auto elem = std::make_shared<Element>(p->tag_name);
-            elem->parent = this->document;
-            this->document->children.push_back(elem);
 
-            this->open_elements.push_back(elem);
+            this->create_elem_push(p->tag_name, this->document);
 
             this->insertion_mode = InsertionMode::BeforeHead;
             return;
@@ -94,11 +100,7 @@ void TreeConstructor::process_before_html() {
     }
 
     //anything else case
-    auto elem = std::make_shared<Element>("html");
-    elem->parent = this->document;
-    this->document->children.push_back(elem);
-
-    this->open_elements.push_back(elem);
+    this->create_elem_push("html", this->document);
 
     this->insertion_mode = InsertionMode::BeforeHead;
 
@@ -161,10 +163,14 @@ void TreeConstructor::process_before_head() {
 
 }
 
-std::shared_ptr<Element> TreeConstructor::create_elem_push(std::string const& tag_name, std::shared_ptr<Node> parent) {
+std::shared_ptr<Element> TreeConstructor::create_elem_push(std::string const& tag_name, std::shared_ptr<Node> parent, bool have_attr) {
 
     auto elem = std::make_shared<Element>(tag_name);
     elem->parent = parent;
+
+    if (have_attr)
+        elem->attributes = std::move(std::get_if<Tokens::TagToken>(&this->_current_token)->attributes);
+    
     parent->children.push_back(elem);
 
     this->open_elements.push_back(elem);

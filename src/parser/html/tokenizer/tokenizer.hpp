@@ -12,7 +12,12 @@ enum class StateMachine {
     data,
     open_tag,
     end_tag_open,
-    tag_name
+    tag_name,
+    before_attribute_name,
+    attribute_name,
+    after_attribute_name,
+    before_attribute_value,
+    attribute_value,
 };
 
 
@@ -31,6 +36,12 @@ class Tokenizer{
     void tag_open_state();
     void tag_name_state();
     void end_tag_open_state();
+
+    void before_attribute_state();
+    void attribute_name_state();
+    void after_attribute_name();
+    void before_attribute_value();
+    void attribute_value();
 
     Token _current_token;
     const std::unique_ptr<TreeConstructor>& _tree;

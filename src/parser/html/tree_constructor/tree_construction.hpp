@@ -51,7 +51,7 @@ struct Element : public Node {
     /*TODO: write constructors after adding attributes, and update the code*/
     Element(std::string const& tag_name);
     std::string tag_name;                    
-    std::map<std::string, std::string> attributes;
+    std::vector<std::unique_ptr<std::pair<std::string, std::string>>> attributes;
 };
 
 struct TextNode : public Node {
@@ -73,7 +73,7 @@ public:
     InsertionMode insertion_mode;
     TreeConstructor();
 
-    void process_token(const Token& token);   // main dispatcher
+    void process_token(Token&& token);   // main dispatcher
 
     
     void pop_until(const std::string& tag_name);
@@ -83,7 +83,8 @@ private:
     void process_before_html();
     bool is_html_whitespace(char32_t c) const;
     void process_before_head();
-    std::shared_ptr<Element> create_elem_push(std::string const& tag_name, std::shared_ptr<Node> parent);
+    // this function needs refactoring, also the element node needs changing as well
+    std::shared_ptr<Element> create_elem_push(std::string const& tag_name, std::shared_ptr<Node> parent, bool have_attr = true);
     void process_in_head();
     void insert_character(char c);
     void process_after_head();
