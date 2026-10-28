@@ -3,6 +3,10 @@ CXX = g++
 
 # Compiler flags
 CXXFLAGS = -std=c++20 -Wall -Wextra
+LDLIBS = -lX11 -lGL
+
+CPPFLAGS += $(shell pkg-config --cflags freetype2)
+LDLIBS += $(shell pkg-config --libs freetype2)
 
 SRC_DIR = src
 BUILD_DIR = build
@@ -34,12 +38,12 @@ $(OBJ_DIR) $(BIN_DIR):
 
 # Linking
 $(TARGET) $(DEBUG): $(OBJS) | $(BIN_DIR)
-	$(CXX) $^ -o $@
+	$(CXX) $^ -o $@ $(LDLIBS)
 
 # Compilation
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
 clean:
 	rm -rf $(BUILD_DIR)
