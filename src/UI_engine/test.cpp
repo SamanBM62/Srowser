@@ -1,333 +1,225 @@
 #include "test.hpp"
+#include <filesystem>
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
+const unsigned int SCR_WIDTH = 800;
+const unsigned int SCR_HEIGHT = 600;
 
-#include <string>
-#include <vector>
-#include <algorithm>
+struct Character {
+    unsigned int TextureID; // ID handle of the glyph texture
+    glm::ivec2   Size;      // Size of glyph
+    glm::ivec2   Bearing;   // Offset from baseline to left/top of glyph
+    unsigned int Advance;   // Horizontal offset to advance to next glyph
+};
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
+std::map<GLchar, Character> Characters{};
+unsigned int VAO{0}, VBO{0};
 
-#include <string>
-#include <vector>
-#include <algorithm>
 
-FT_Library fontLibrary = nullptr;
-FT_Face fontFace = nullptr;
-
-bool initFont(const char* path)
+void RenderText(Shader &shader, std::string text, float x, float y, float scale, glm::vec3 color)
 {
-    if (FT_Init_FreeType(&fontLibrary))
-        return false;
+    // activate corresponding render state	
+    shader.use();
+    glUniform3f(glGetUniformLocation(shader.ID, "textColor"), color.x, color.y, color.z);
+    glActiveTexture(GL_TEXTURE0);
+    glBindVertexArray(VAO);
 
-    if (FT_New_Face(fontLibrary, path, 0, &fontFace))
+    // iterate through all characters
+    std::string::const_iterator c;
+    for (c = text.begin(); c != text.end(); c++) 
     {
-        FT_Done_FreeType(fontLibrary);
-        fontLibrary = nullptr;
-        return false;
+        Character ch = Characters[*c];
+
+        float xpos = x + ch.Bearing.x * scale;
+        float ypos = y - (ch.Size.y - ch.Bearing.y) * scale;
+
+        float w = ch.Size.x * scale;
+        float h = ch.Size.y * scale;
+        // update VBO for each character
+        float vertices[6][4] = {
+            { xpos,     ypos + h,   0.0f, 0.0f },            
+            { xpos,     ypos,       0.0f, 1.0f },
+            { xpos + w, ypos,       1.0f, 1.0f },
+
+            { xpos,     ypos + h,   0.0f, 0.0f },
+            { xpos + w, ypos,       1.0f, 1.0f },
+            { xpos + w, ypos + h,   1.0f, 0.0f }           
+        };
+        // render glyph texture over quad
+        glBindTexture(GL_TEXTURE_2D, ch.TextureID);
+        // update content of VBO memory
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices); // be sure to use glBufferSubData and not glBufferData
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        // render quad
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        // now advance cursors for next glyph (note that advance is number of 1/64 pixels)
+        x += (ch.Advance >> 6) * scale; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
     }
-
-    return true;
-}
-
-void destroyFont()
-{
-    if (fontFace)
-        FT_Done_Face(fontFace);
-
-    if (fontLibrary)
-        FT_Done_FreeType(fontLibrary);
-
-    fontFace = nullptr;
-    fontLibrary = nullptr;
-}
-
-// x and baselineY are measured in pixels from the top-left.
-// This first version supports single-line ASCII text.
-void drawText(
-    const std::string& text,
-    float x,
-    float baselineY,
-    unsigned int pixelSize)
-{
-    if (!fontFace || FT_Set_Pixel_Sizes(fontFace, 0, pixelSize))
-        return;
-
-    // Save the OpenGL state that this function changes.
-    glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT |
-                 GL_TEXTURE_BIT | GL_CURRENT_BIT);
-    glPushClientAttrib(GL_CLIENT_PIXEL_STORE_BIT);
-
-    GLint previousMatrixMode;
-    glGetIntegerv(GL_MATRIX_MODE, &previousMatrixMode);
-
-    // Use pixel coordinates matching the current viewport.
-    GLint viewport[4];
-    glGetIntegerv(GL_VIEWPORT, viewport);
-
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(0, viewport[2], viewport[3], 0, -1, 1);
-
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_LIGHTING);
-    glDisable(GL_CULL_FACE);
-
-    glEnable(GL_TEXTURE_2D);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    glColor4f(1, 1, 1, 1); // White text.
-    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
-    glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
-
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    for (unsigned char character : text)
-    {
-        if (FT_Load_Char(
-                fontFace,
-                character,
-                FT_LOAD_RENDER | FT_LOAD_NO_BITMAP))
-            continue;
-
-        FT_GlyphSlot glyph = fontFace->glyph;
-        const FT_Bitmap& bitmap = glyph->bitmap;
-
-        if (bitmap.width > 0 && bitmap.rows > 0 &&
-            bitmap.pixel_mode == FT_PIXEL_MODE_GRAY)
-        {
-            // Copy rows into tightly packed memory.
-            // FreeType's pitch may include padding or be negative.
-            std::vector<unsigned char> pixels(
-                bitmap.width * bitmap.rows);
-
-            for (unsigned int row = 0; row < bitmap.rows; ++row)
-            {
-                const unsigned char* source =
-                    bitmap.buffer +
-                    static_cast<std::ptrdiff_t>(row) * bitmap.pitch;
-
-                std::copy_n(
-                    source,
-                    bitmap.width,
-                    pixels.data() + row * bitmap.width);
-            }
-
-            glTexImage2D(
-                GL_TEXTURE_2D, 0, GL_ALPHA,
-                bitmap.width, bitmap.rows,
-                0, GL_ALPHA, GL_UNSIGNED_BYTE, pixels.data());
-
-            float left = x + glyph->bitmap_left;
-            float top = baselineY - glyph->bitmap_top;
-            float right = left + bitmap.width;
-            float bottom = top + bitmap.rows;
-
-            // Two triangles form the character's rectangle.
-            glBegin(GL_TRIANGLES);
-
-            glTexCoord2f(0, 0); glVertex2f(left,  top);
-            glTexCoord2f(1, 0); glVertex2f(right, top);
-            glTexCoord2f(1, 1); glVertex2f(right, bottom);
-
-            glTexCoord2f(0, 0); glVertex2f(left,  top);
-            glTexCoord2f(1, 1); glVertex2f(right, bottom);
-            glTexCoord2f(0, 1); glVertex2f(left,  bottom);
-
-            glEnd();
-        }
-
-        // FreeType stores advance distances in 1/64 pixel units.
-        x += glyph->advance.x / 64.0f;
-    }
-
-    glDeleteTextures(1, &texture);
-
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-
-    glMatrixMode(previousMatrixMode);
-
-    glPopClientAttrib();
-    glPopAttrib();
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 int draw()
 {
-    // 1. Connect to the X11 display
-    Display* display = XOpenDisplay(nullptr);
 
-    if (!display)
+
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+
+    GLFWwindow* window = glfwCreateWindow(800, 600, "LearnOpenGL", NULL, NULL);
+    if (window == NULL)
     {
-        std::cerr << "Failed to connect to X11 display\n";
-        return 1;
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+    glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+
+    if (!gladLoadGL((GLADloadfunc)glfwGetProcAddress))
+    {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+        return -1;
     }
 
-    // 2. Choose an OpenGL-compatible visual
-    int attributes[] = {
-        GLX_RGBA,
-        GLX_DOUBLEBUFFER,
-        GLX_RED_SIZE,   8,
-        GLX_GREEN_SIZE, 8,
-        GLX_BLUE_SIZE,  8,
-        None
-    };
+    // OpenGL state
+    // ------------
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // compile and setup the shader
+    // ----------------------------
+    Shader shader("text.vs", "text.fs");
+    glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(SCR_WIDTH), 0.0f, static_cast<float>(SCR_HEIGHT));
+    shader.use();
+    glUniformMatrix4fv(glGetUniformLocation(shader.ID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
-    XVisualInfo* visual =
-        glXChooseVisual(display, DefaultScreen(display), attributes);
-
-    if (!visual)
+    // FreeType
+    // --------
+    FT_Library ft;
+    // All functions return a value different than 0 whenever an error occurred
+    if (FT_Init_FreeType(&ft))
     {
-        std::cerr << "Failed to find an OpenGL visual\n";
-        XCloseDisplay(display);
-        return 1;
+        std::cout << "ERROR::FREETYPE: Could not init FreeType Library" << std::endl;
+        return -1;
     }
 
-    // 3. Create the window
-    Colormap colormap = XCreateColormap(
-        display,
-        RootWindow(display, visual->screen),
-        visual->visual,
-        AllocNone
-    );
-
-    XSetWindowAttributes windowAttributes{};
-    windowAttributes.colormap = colormap;
-    windowAttributes.event_mask =
-        ExposureMask |
-        StructureNotifyMask |
-        KeyPressMask |
-        ButtonPressMask |
-        ButtonReleaseMask |
-        PointerMotionMask;
-
-    Window window = XCreateWindow(
-        display,
-        RootWindow(display, visual->screen),
-        100, 100,
-        1280, 720,
-        0,
-        visual->depth,
-        InputOutput,
-        visual->visual,
-        CWColormap | CWEventMask,
-        &windowAttributes
-    );
-
-    XStoreName(display, window, "My Custom UI Engine");
-
-    // Allow the window manager's close button to close the program.
-    Atom wmDelete = XInternAtom(display, "WM_DELETE_WINDOW", False);
-    XSetWMProtocols(display, window, &wmDelete, 1);
-
-    // 4. Create the OpenGL context
-    GLXContext context = glXCreateContext(
-        display,
-        visual,
-        nullptr,
-        True
-    );
-
-    if (!context)
+	// find path to font
+    std::string font_name = std::filesystem::absolute(
+    "resources/fonts/Antonio-VariableFont_wght.ttf"
+).string();
+    if (font_name.empty())
     {
-        std::cerr << "Failed to create OpenGL context\n";
-        XDestroyWindow(display, window);
-        XFreeColormap(display, colormap);
-        XFree(visual);
-        XCloseDisplay(display);
-        return 1;
+        std::cout << "ERROR::FREETYPE: Failed to load font_name" << std::endl;
+        return -1;
     }
+	
+	// load font as face
+    FT_Face face;
+    if (FT_New_Face(ft, font_name.c_str(), 0, &face)) {
+        std::cout << "ERROR::FREETYPE: Failed to load font" << std::endl;
+        return -1;
+    }
+    else {
+        // set size to load glyphs as
+        FT_Set_Pixel_Sizes(face, 0, 48);
 
-    // 5. Connect OpenGL to our window
-    glXMakeCurrent(display, window, context);
+        // disable byte-alignment restriction
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    // 6. Show the window
-    XMapWindow(display, window);
-
-    // Configure the initial viewport.
-    glViewport(0, 0, 1280, 720);
-
-    // Set the background color.
-    glClearColor(0.12f, 0.14f, 0.18f, 1.0f);
-
-    bool running = initFont(
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
-
-    if (!running)
-        std::cerr << "Failed to load font; check the font path\n";
-
-    // 7. Main application loop
-    while (running)
-    {
-        // Process window and input events.
-        while (XPending(display))
+        // load first 128 characters of ASCII set
+        for (unsigned char c = 0; c < 128; c++)
         {
-            XEvent event;
-            XNextEvent(display, &event);
-
-            if (event.type == ClientMessage &&
-                static_cast<Atom>(event.xclient.data.l[0]) == wmDelete)
+            // Load character glyph 
+            if (FT_Load_Char(face, c, FT_LOAD_RENDER))
             {
-                running = false;
+                std::cout << "ERROR::FREETYTPE: Failed to load Glyph" << std::endl;
+                continue;
             }
-
-            if (event.type == ConfigureNotify)
-            {
-                glViewport(
-                    0,
-                    0,
-                    event.xconfigure.width,
-                    event.xconfigure.height
-                );
-            }
-
-            if (event.type == ButtonPress)
-            {
-                std::cout << "Mouse clicked at "
-                          << event.xbutton.x << ", "
-                          << event.xbutton.y << '\n';
-            }
+            // generate texture
+            unsigned int texture;
+            glGenTextures(1, &texture);
+            glBindTexture(GL_TEXTURE_2D, texture);
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RED,
+                face->glyph->bitmap.width,
+                face->glyph->bitmap.rows,
+                0,
+                GL_RED,
+                GL_UNSIGNED_BYTE,
+                face->glyph->bitmap.buffer
+            );
+            // set texture options
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            // now store character for later use
+            Character character = {
+                texture,
+                glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
+                glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
+                static_cast<unsigned int>(face->glyph->advance.x)
+            };
+            Characters.insert(std::pair<char, Character>(c, character));
         }
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+    // destroy FreeType once we're finished
+    FT_Done_Face(face);
+    FT_Done_FreeType(ft);
 
-        // Render with OpenGL.
+    
+    // configure VAO/VBO for texture quads
+    // -----------------------------------
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    // render loop
+    // -----------
+    while (!glfwWindowShouldClose(window))
+    {
+
+        // render
+        // ------
+        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        drawText("Hello, OpenGL!", 20, 50, 32);
+        // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
+        // -------------------------------------------------------------------------------
+        RenderText(shader, "This is sample text", 25.0f, 25.0f, 1.0f, glm::vec3(0.5, 0.8f, 0.2f));
 
-        // Display the rendered frame.
-        glXSwapBuffers(display, window);
+        RenderText(shader, "(C) LearnOpenGL.com", 540.0f, 570.0f, 0.5f, glm::vec3(0.3, 0.7f, 0.9f));
+        glfwSwapBuffers(window);
+        glfwPollEvents();
     }
 
-    // 8. Clean up
-    glXMakeCurrent(display, None, nullptr);
-    glXDestroyContext(display, context);
-
-    XDestroyWindow(display, window);
-    XFreeColormap(display, colormap);
-    XFree(visual);
-    XCloseDisplay(display);
+    // glfw: terminate, clearing all previously allocated GLFW resources.
+    // ------------------------------------------------------------------
+    glfwTerminate();
 
     return 0;
+}
+
+// glfw: whenever the window size changed (by OS or user resize) this callback function executes
+// ---------------------------------------------------------------------------------------------
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    // make sure the viewport matches the new window dimensions; note that width and 
+    // height will be significantly larger than specified on retina displays.
+    glViewport(0, 0, width, height);
 }

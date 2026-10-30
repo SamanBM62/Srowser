@@ -5,8 +5,13 @@
 
 #include <iostream>
 
-#include <GL/gl.h>
-//the library below connects x11 to openGL
-#include <GL/glx.h>
+
+
+#include <glad/gl.h>
+
+#include <GLFW/glfw3.h>
+
+#include "text_renderer.hpp"
 
 int draw();
+void framebuffer_size_callback(GLFWwindow* window, int width, int height);
